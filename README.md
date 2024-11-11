@@ -5,6 +5,27 @@ This project presents a solution that enables secure, one-way human approval wor
 https://manjit28.medium.com/
 
 ## Sequence Diagram
+### Broad Requirement
+
+````mermaid
+---
+config:
+  theme: base
+---
+sequenceDiagram
+    participant Monitoring-System
+    participant Approver
+    participant Queue
+    participant Action-Service
+    Monitoring-System->>Approver: Send approval emails with links
+    Approver->>Monitoring-System: Click approve/reject link
+    Monitoring-System->>Monitoring-System: Invalidate other links
+    Monitoring-System->>Queue: Store decision
+    Queue->>Service: Process message
+    Action-Service->>Monitoring-System: Take action
+````
+
+### Refined Requirements with Selected Components
 
 ```mermaid
 ---
@@ -50,6 +71,17 @@ Sample cloud formation template to create required resources is attached for ref
 ```
 cdk migrate --stack-name issue-approval --language python|typescript --from-path \path\sample-cloud-formation-template.json
 ```
+## Code Componenets
+There are three Components in attached code:
+
+### Trigerr.Api 
+On-premises service. This is what starts the workflow by adding records in DynamoDB tables. Can be expanded as needed.
+
+### ActionProcessor 
+On-premises service. This service will actually execute approved action in approval workflow by consuming SQS messages. This code is here just as a placeholder as this will be very custom code based on requested action
+
+### Lambda Function
+Runs in cloud. This is where most of the code belongs and this is explained in bit detail below.
 
 ## Issue Action Approval Lambda Function
 
