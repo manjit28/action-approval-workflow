@@ -1,5 +1,55 @@
 # Issue Action Approval Workflow
-This project presents a solution that enables secure, one-way human approval workflows between on-premises systems and AWS cloud services.
+This project presents a solution that enables secure, one-way human approval workflows between on-premises systems and AWS cloud services. This is to handle use case where on premises monitoring system triggers an event that requires human approval but we cannot intercept enterprise email system of the company. Use case is described at following Medium location:
+
+
+https://manjit28.medium.com/
+
+## Sequence Diagram
+
+```mermaid
+---
+config:
+  theme: forest
+---
+sequenceDiagram
+    participant MS as Monitoring Service<br/>(On-Prem)
+    participant SES as AWS SES
+    participant DB as DynamoDB
+    participant LF as Lambda Function
+    participant SQS as AWS SQS
+    participant A as Approvers
+    Note over MS,A: Issue Detection & Token Generation
+    MS->>DB: Store request details & tokens<br/>with TTL
+    MS->>SES: Send approval emails with<br/>unique tokens
+    SES->>A: Emails with Approve/Reject links
+    Note over A,DB: First Approval Response
+    A->>LF: First approver clicks link
+    LF->>DB: Validate token
+    LF->>DB: Invalidate other tokens
+    LF->>SQS: Add approval message
+    LF->>SES: Send notification to<br/>other approvers
+    SES->>A: Notification of action taken
+    Note over MS,A: Action Execution
+    MS->>SQS: Poll for messages
+    SQS-->>MS: Retrieve approval message
+    MS->>MS: Execute automated action
+    MS->>DB: Update request status
+    Note over MS,A: Key Points
+    Note right of MS: Only outbound connections<br/>from on-premises
+    Note right of DB: Tokens stored with TTL
+    Note right of LF: First approval wins
+
+```
+
+
+
+
+## Cloud Formation Template
+Sample cloud formation template to create required resources is attached for reference. If needed, it can be converted to CDK template.
+
+```
+cdk migrate --stack-name issue-approval --language python|typescript --from-path \path\sample-cloud-formation-template.json
+```
 
 ## Issue Action Approval Lambda Function
 
@@ -31,9 +81,11 @@ The function processes approval requests by:
 
 Table Name: IssueActionApproval
 
-Primary Key: RequestId (String)
+##### Primary Key: 
 
-Attributes:
+RequestId (String)
+
+##### Attributes:
 
 Status (String)
 
@@ -42,12 +94,14 @@ ActionParameters (Map)
 #### 2. IssueActionToken Table:
 
 Table Name: IssueActionToken
-Primary Key:
 
+##### Primary Key:
 
 RequestId (String)
 
-Token (String) Attributes:
+Token (String) 
+
+##### Attributes:
 
 Status (String)
 
@@ -65,7 +119,7 @@ ApproverEmail (String)
 - Verified sender email address
 - Appropriate sending limits for your use case
 
-## Environment Variables
+## Environment Variables for Lambda Function
 ISSUE_TABLE_NAME=IssueActionApproval
 
 TOKEN_TABLE_NAME=IssueActionToken

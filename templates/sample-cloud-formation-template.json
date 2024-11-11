@@ -1,0 +1,283 @@
+{
+  "Resources": {
+    "ApprovalQueue": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "FifoQueue": true,
+        "ContentBasedDeduplication": true,
+        "DeduplicationScope": "messageGroup",
+        "FifoThroughputLimit": "perMessageGroupId",
+        "VisibilityTimeout": 300,
+        "MessageRetentionPeriod": 1209600,
+        "QueueName": "issue-action-approval.fifo"
+      }
+    },
+    "ApprovalQueuePolicy": {
+      "Type": "AWS::SQS::QueuePolicy",
+      "Properties": {
+        "Queues": [
+          {
+            "Ref": "ApprovalQueue"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sqs:SendMessage",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "ApprovalQueue",
+                  "Arn"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "TokenTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": "IssueActionToken",
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "RequestId",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "Token",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "RequestId",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "Token",
+            "KeyType": "RANGE"
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "TimeToLiveSpecification": {
+          "AttributeName": "ExpiryTime",
+          "Enabled": true
+        },
+        "StreamSpecification": {
+          "StreamViewType": "NEW_AND_OLD_IMAGES"
+        }
+      }
+    },
+    "ApprovalTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": "IssueActionApproval",
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "RequestId",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "IncidentId",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "CreatedAt",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "Status",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "ApproverEmail",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "RequestId",
+            "KeyType": "HASH"
+          }
+        ],
+        "GlobalSecondaryIndexes": [
+          {
+            "IndexName": "IncidentIdIndex",
+            "KeySchema": [
+              {
+                "AttributeName": "IncidentId",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "CreatedAt",
+                "KeyType": "RANGE"
+              }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            }
+          },
+          {
+            "IndexName": "StatusIndex",
+            "KeySchema": [
+              {
+                "AttributeName": "Status",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "CreatedAt",
+                "KeyType": "RANGE"
+              }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            }
+          },
+          {
+            "IndexName": "ApproverIndex",
+            "KeySchema": [
+              {
+                "AttributeName": "ApproverEmail",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "CreatedAt",
+                "KeyType": "RANGE"
+              }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            }
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "TimeToLiveSpecification": {
+          "AttributeName": "ExpiryTime",
+          "Enabled": true
+        }
+      }
+    },
+    "ApprovalLambdaRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        ],
+        "Policies": [
+          {
+            "PolicyName": "ApprovalLambdaPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:Query"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "TokenTable",
+                        "Arn"
+                      ]
+                    },
+                    {
+                      "Fn::GetAtt": [
+                        "ApprovalTable",
+                        "Arn"
+                      ]
+                    },
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Fn::GetAtt": [
+                              "ApprovalTable",
+                              "Arn"
+                            ]
+                          },
+                          "/index/*"
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:SendMessage"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "ApprovalQueue",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ses:SendEmail",
+                    "ses:SendRawEmail"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "QueueUrl": {
+      "Description": "URL of the SQS Queue",
+      "Value": {
+        "Ref": "ApprovalQueue"
+      }
+    },
+    "QueueArn": {
+      "Description": "ARN of the SQS Queue",
+      "Value": {
+        "Fn::GetAtt": [
+          "ApprovalQueue",
+          "Arn"
+        ]
+      }
+    },
+    "TokenTableName": {
+      "Description": "Name of the Token DynamoDB table",
+      "Value": {
+        "Ref": "TokenTable"
+      }
+    },
+    "ApprovalTableName": {
+      "Description": "Name of the Approval DynamoDB table",
+      "Value": {
+        "Ref": "ApprovalTable"
+      }
+    }
+  }
+}

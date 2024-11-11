@@ -1,0 +1,6 @@
+@Indubit.IssueApprovalWorkflow.Trigger.Api_HostAddress = http://localhost:5170
+
+# GET {{Indubit.IssueApprovalWorkflow.Trigger.Api_HostAddress}}/weatherforecast/
+# Accept: application/json
+
+###
