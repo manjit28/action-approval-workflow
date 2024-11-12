@@ -2,10 +2,10 @@
 This project presents a solution that enables secure, one-way human approval workflows between on-premises systems and AWS cloud services. This is to handle use case where on premises monitoring system triggers an event that requires human approval but we cannot intercept enterprise email system of the company. Use case is described at following Medium location:
 
 
-https://manjit28.medium.com/
+[Building a Cross-Boundary Approval System between On-Premises and AWS Cloud](https://manjit28.medium.com/building-a-cross-boundary-approval-system-between-on-premises-and-aws-cloud-ee4d8a197c24)
 
 ## Sequence Diagram
-### Broad Requirement
+### High Level Requirement
 
 ````mermaid
 ---
